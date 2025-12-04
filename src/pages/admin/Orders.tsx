@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Eye, Search } from "lucide-react";
+import { Eye, Search, MapPin, ExternalLink, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -19,6 +19,27 @@ import { useToast } from "@/hooks/use-toast";
 import { useOrders, useUpdateOrderStatus, type Order } from "@/hooks/useOrders";
 import { formatPrice } from "@/hooks/useProducts";
 import { Skeleton } from "@/components/ui/skeleton";
+
+// Extract coordinates from address if present
+function extractCoordinates(address: string): { lat: number; lng: number } | null {
+  const coordMatch = address.match(/Koordinatalar:\s*([-\d.]+),\s*([-\d.]+)/);
+  if (coordMatch) {
+    return { lat: parseFloat(coordMatch[1]), lng: parseFloat(coordMatch[2]) };
+  }
+  return null;
+}
+
+function getMapLink(address: string): string | null {
+  const coords = extractCoordinates(address);
+  if (coords) {
+    return `https://www.google.com/maps?q=${coords.lat},${coords.lng}`;
+  }
+  // For regular addresses, create a search link
+  if (address && address.length > 5) {
+    return `https://www.google.com/maps/search/${encodeURIComponent(address)}`;
+  }
+  return null;
+}
 
 const statuses = ["Hammasi", "Yangi", "Tayyorlanmoqda", "Yetkazilmoqda", "Bajarildi"];
 
@@ -188,11 +209,31 @@ export default function Orders() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Telefon</p>
-                  <p className="font-medium">{selectedOrder.phone}</p>
+                  <a 
+                    href={`tel:${selectedOrder.phone}`}
+                    className="font-medium text-primary hover:underline flex items-center gap-1"
+                  >
+                    <Phone className="w-3 h-3" />
+                    {selectedOrder.phone}
+                  </a>
                 </div>
                 <div className="col-span-2">
                   <p className="text-sm text-muted-foreground">Manzil</p>
-                  <p className="font-medium">{selectedOrder.address}</p>
+                  <div className="flex items-start gap-2">
+                    <p className="font-medium flex-1">{selectedOrder.address}</p>
+                    {getMapLink(selectedOrder.address) && (
+                      <a
+                        href={getMapLink(selectedOrder.address)!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-xs text-primary hover:underline shrink-0"
+                      >
+                        <MapPin className="w-3 h-3" />
+                        Xaritada
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
 

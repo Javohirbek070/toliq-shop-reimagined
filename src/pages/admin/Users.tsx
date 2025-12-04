@@ -35,7 +35,6 @@ interface UserRole {
   id: string;
   user_id: string;
   role: 'admin' | 'user' | 'owner';
-  email?: string;
   full_name?: string;
 }
 
@@ -45,38 +44,53 @@ export default function Users() {
   const [users, setUsers] = useState<UserRole[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [newUserEmail, setNewUserEmail] = useState("");
+  const [newUserId, setNewUserId] = useState("");
   const [newUserRole, setNewUserRole] = useState<"admin" | "user">("admin");
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
 
   const fetchUsers = async () => {
     setIsLoading(true);
-    const { data: roles, error } = await supabase
+    
+    // First get all user roles
+    const { data: roles, error: rolesError } = await supabase
       .from("user_roles")
-      .select(`
-        id,
-        user_id,
-        role,
-        profiles!inner(full_name)
-      `);
+      .select("id, user_id, role");
 
-    if (error) {
-      console.error("Error fetching users:", error);
+    if (rolesError) {
+      console.error("Error fetching roles:", rolesError);
       setIsLoading(false);
       return;
     }
 
-    // Get emails from auth.users via a separate query
-    const userIds = roles?.map(r => r.user_id) || [];
-    
-    const usersWithEmail: UserRole[] = (roles || []).map((role: any) => ({
-      id: role.id,
-      user_id: role.user_id,
-      role: role.role as 'admin' | 'user' | 'owner',
-      full_name: role.profiles?.full_name,
-    }));
+    if (!roles || roles.length === 0) {
+      setUsers([]);
+      setIsLoading(false);
+      return;
+    }
 
-    setUsers(usersWithEmail);
+    // Get profiles for these users
+    const userIds = roles.map(r => r.user_id);
+    const { data: profiles, error: profilesError } = await supabase
+      .from("profiles")
+      .select("user_id, full_name")
+      .in("user_id", userIds);
+
+    if (profilesError) {
+      console.error("Error fetching profiles:", profilesError);
+    }
+
+    // Merge the data
+    const usersWithNames: UserRole[] = roles.map((role) => {
+      const profile = profiles?.find(p => p.user_id === role.user_id);
+      return {
+        id: role.id,
+        user_id: role.user_id,
+        role: role.role as 'admin' | 'user' | 'owner',
+        full_name: profile?.full_name || undefined,
+      };
+    });
+
+    setUsers(usersWithNames);
     setIsLoading(false);
   };
 
@@ -84,38 +98,30 @@ export default function Users() {
     fetchUsers();
   }, []);
 
-  const handleAddUser = async () => {
-    if (!newUserEmail.trim()) {
+  const handleAddUserById = async () => {
+    if (!newUserId.trim()) {
       toast({
         title: "Xatolik",
-        description: "Email kiritilishi shart",
+        description: "User ID kiritilishi shart",
         variant: "destructive",
       });
       return;
     }
 
-    // First, find the user by email in profiles
-    const { data: profiles, error: profileError } = await supabase
-      .from("profiles")
-      .select("user_id")
-      .eq("full_name", newUserEmail.trim());
+    // Check if user already has this role
+    const existingRole = users.find(u => u.user_id === newUserId.trim());
+    if (existingRole) {
+      toast({
+        title: "Xatolik",
+        description: "Bu foydalanuvchi allaqachon rolga ega",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    // Try to find in auth.users via a different approach
-    // Since we can't directly query auth.users, we'll use the invite functionality
-    // For now, let's search by checking if user exists via sign in attempt or profiles
-
-    toast({
-      title: "Eslatma",
-      description: "Foydalanuvchi avval ro'yxatdan o'tgan bo'lishi kerak. Ularning user_id sini kiriting.",
-      variant: "destructive",
-    });
-    return;
-  };
-
-  const handleAddUserById = async (userId: string) => {
     const { error } = await supabase
       .from("user_roles")
-      .insert({ user_id: userId, role: newUserRole });
+      .insert({ user_id: newUserId.trim(), role: newUserRole });
 
     if (error) {
       toast({
@@ -131,7 +137,7 @@ export default function Users() {
       description: "Foydalanuvchi qo'shildi",
     });
     setIsAddDialogOpen(false);
-    setNewUserEmail("");
+    setNewUserId("");
     fetchUsers();
   };
 
@@ -230,8 +236,8 @@ export default function Users() {
                 <Label>Foydalanuvchi ID</Label>
                 <Input
                   placeholder="User ID kiriting"
-                  value={newUserEmail}
-                  onChange={(e) => setNewUserEmail(e.target.value)}
+                  value={newUserId}
+                  onChange={(e) => setNewUserId(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
                   Foydalanuvchi avval ro'yxatdan o'tgan bo'lishi kerak
@@ -252,7 +258,7 @@ export default function Users() {
               <Button
                 variant="hero"
                 className="w-full"
-                onClick={() => handleAddUserById(newUserEmail)}
+                onClick={handleAddUserById}
               >
                 Qo'shish
               </Button>
