@@ -1,9 +1,14 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Minus, Plus, Trash2, ShoppingBag } from "lucide-react";
-import { formatPrice, type MenuItem } from "@/data/menuData";
+import { formatPrice } from "@/hooks/useProducts";
 
-export interface CartItem extends MenuItem {
+export interface CartItem {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  image: string;
   quantity: number;
 }
 
@@ -54,7 +59,7 @@ export function CartDrawer({
                     className="flex gap-4 p-3 bg-card rounded-xl border border-border"
                   >
                     <img
-                      src={item.image}
+                      src={item.image || "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400"}
                       alt={item.name}
                       className="w-20 h-20 object-cover rounded-lg"
                     />

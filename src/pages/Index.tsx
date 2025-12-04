@@ -6,15 +6,18 @@ import { FeaturedSection } from "@/components/FeaturedSection";
 import { ContactSection } from "@/components/ContactSection";
 import { Footer } from "@/components/Footer";
 import { CartDrawer, type CartItem } from "@/components/CartDrawer";
-import { type MenuItem, featuredItem } from "@/data/menuData";
+import { CheckoutDialog } from "@/components/CheckoutDialog";
+import { type Product, useFeaturedProduct } from "@/hooks/useProducts";
 import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const { toast } = useToast();
+  const { data: featuredProduct } = useFeaturedProduct();
 
-  const addToCart = (item: MenuItem) => {
+  const addToCart = (item: Product) => {
     setCartItems((prev) => {
       const existing = prev.find((i) => i.id === item.id);
       if (existing) {
@@ -22,7 +25,14 @@ const Index = () => {
           i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i
         );
       }
-      return [...prev, { ...item, quantity: 1 }];
+      return [...prev, { 
+        id: item.id,
+        name: item.name,
+        description: item.description || "",
+        price: item.price,
+        image: item.image || "",
+        quantity: 1 
+      }];
     });
     toast({
       title: "Savatga qo'shildi",
@@ -45,12 +55,13 @@ const Index = () => {
   };
 
   const handleCheckout = () => {
-    toast({
-      title: "Buyurtma qabul qilindi!",
-      description: "Tez orada siz bilan bog'lanamiz.",
-    });
-    setCartItems([]);
     setIsCartOpen(false);
+    setIsCheckoutOpen(true);
+  };
+
+  const handleOrderComplete = () => {
+    setCartItems([]);
+    setIsCheckoutOpen(false);
   };
 
   const cartItemsCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
@@ -64,7 +75,7 @@ const Index = () => {
       <Hero />
       <MenuSection onAddToCart={addToCart} />
       <FeaturedSection
-        onAddToCart={() => featuredItem && addToCart(featuredItem)}
+        onAddToCart={() => featuredProduct && addToCart(featuredProduct)}
       />
       <ContactSection />
       <Footer />
@@ -75,6 +86,12 @@ const Index = () => {
         onUpdateQuantity={updateQuantity}
         onRemove={removeFromCart}
         onCheckout={handleCheckout}
+      />
+      <CheckoutDialog
+        isOpen={isCheckoutOpen}
+        onClose={() => setIsCheckoutOpen(false)}
+        items={cartItems}
+        onComplete={handleOrderComplete}
       />
     </div>
   );

@@ -3,7 +3,13 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { categories as initialCategories, type Category } from "@/data/menuData";
+import { 
+  useCategories, 
+  useCreateCategory, 
+  useUpdateCategory, 
+  useDeleteCategory,
+  type Category 
+} from "@/hooks/useCategories";
 import {
   Dialog,
   DialogContent,
@@ -12,19 +18,32 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Categories() {
-  const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const { toast } = useToast();
 
-  const handleDelete = (id: string) => {
-    setCategories((prev) => prev.filter((c) => c.id !== id));
-    toast({
-      title: "Kategoriya o'chirildi",
-      description: "Kategoriya muvaffaqiyatli o'chirildi",
-    });
+  const { data: categories, isLoading } = useCategories();
+  const createCategory = useCreateCategory();
+  const updateCategory = useUpdateCategory();
+  const deleteCategory = useDeleteCategory();
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteCategory.mutateAsync(id);
+      toast({
+        title: "Kategoriya o'chirildi",
+        description: "Kategoriya muvaffaqiyatli o'chirildi",
+      });
+    } catch (error) {
+      toast({
+        title: "Xatolik",
+        description: "Kategoriyani o'chirishda xatolik",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleEdit = (category: Category) => {
@@ -32,24 +51,41 @@ export default function Categories() {
     setIsDialogOpen(true);
   };
 
-  const handleSave = (data: { name: string; slug: string }) => {
-    if (editingCategory) {
-      setCategories((prev) =>
-        prev.map((c) => (c.id === editingCategory.id ? { ...c, ...data } : c))
-      );
-      toast({ title: "Kategoriya yangilandi" });
-    } else {
-      const newCategory: Category = {
-        id: Date.now().toString(),
-        name: data.name,
-        slug: data.slug,
-      };
-      setCategories((prev) => [...prev, newCategory]);
-      toast({ title: "Kategoriya qo'shildi" });
+  const handleSave = async (data: { name: string; slug: string }) => {
+    try {
+      if (editingCategory) {
+        await updateCategory.mutateAsync({ id: editingCategory.id, ...data });
+        toast({ title: "Kategoriya yangilandi" });
+      } else {
+        await createCategory.mutateAsync(data);
+        toast({ title: "Kategoriya qo'shildi" });
+      }
+      setIsDialogOpen(false);
+      setEditingCategory(null);
+    } catch (error) {
+      toast({
+        title: "Xatolik",
+        description: "Saqlashda xatolik yuz berdi",
+        variant: "destructive",
+      });
     }
-    setIsDialogOpen(false);
-    setEditingCategory(null);
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-10 w-40" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 rounded-xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -85,6 +121,7 @@ export default function Categories() {
                 setIsDialogOpen(false);
                 setEditingCategory(null);
               }}
+              isLoading={createCategory.isPending || updateCategory.isPending}
             />
           </DialogContent>
         </Dialog>
@@ -92,7 +129,7 @@ export default function Categories() {
 
       {/* Categories Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {categories.map((category) => (
+        {categories?.map((category) => (
           <div
             key={category.id}
             className="glass-card rounded-xl p-6 group hover:border-primary/30 transition-all duration-300"
@@ -132,9 +169,10 @@ interface CategoryFormProps {
   category: Category | null;
   onSave: (data: { name: string; slug: string }) => void;
   onCancel: () => void;
+  isLoading: boolean;
 }
 
-function CategoryForm({ category, onSave, onCancel }: CategoryFormProps) {
+function CategoryForm({ category, onSave, onCancel, isLoading }: CategoryFormProps) {
   const [formData, setFormData] = useState({
     name: category?.name || "",
     slug: category?.slug || "",
@@ -177,8 +215,8 @@ function CategoryForm({ category, onSave, onCancel }: CategoryFormProps) {
         <Button type="button" variant="secondary" onClick={onCancel} className="flex-1">
           Bekor qilish
         </Button>
-        <Button type="submit" variant="hero" className="flex-1">
-          Saqlash
+        <Button type="submit" variant="hero" className="flex-1" disabled={isLoading}>
+          {isLoading ? "Saqlanmoqda..." : "Saqlash"}
         </Button>
       </div>
     </form>

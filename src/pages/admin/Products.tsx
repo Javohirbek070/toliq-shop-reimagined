@@ -2,7 +2,15 @@ import { useState } from "react";
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { menuItems, categories, formatPrice, type MenuItem } from "@/data/menuData";
+import { 
+  useProducts, 
+  useCreateProduct, 
+  useUpdateProduct, 
+  useDeleteProduct,
+  formatPrice,
+  type Product 
+} from "@/hooks/useProducts";
+import { useCategories } from "@/hooks/useCategories";
 import {
   Dialog,
   DialogContent,
@@ -18,53 +26,82 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Products() {
-  const [products, setProducts] = useState<MenuItem[]>(menuItems);
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<MenuItem | null>(null);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const { toast } = useToast();
 
-  const filteredProducts = products.filter((product) =>
-    product.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const { data: products, isLoading } = useProducts();
+  const { data: categories } = useCategories();
+  const createProduct = useCreateProduct();
+  const updateProduct = useUpdateProduct();
+  const deleteProduct = useDeleteProduct();
 
-  const handleDelete = (id: string) => {
-    setProducts((prev) => prev.filter((p) => p.id !== id));
-    toast({
-      title: "Mahsulot o'chirildi",
-      description: "Mahsulot muvaffaqiyatli o'chirildi",
-    });
+  const filteredProducts = products?.filter((product) =>
+    product.name.toLowerCase().includes(searchQuery.toLowerCase())
+  ) || [];
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteProduct.mutateAsync(id);
+      toast({
+        title: "Mahsulot o'chirildi",
+        description: "Mahsulot muvaffaqiyatli o'chirildi",
+      });
+    } catch (error) {
+      toast({
+        title: "Xatolik",
+        description: "Mahsulotni o'chirishda xatolik",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleEdit = (product: MenuItem) => {
+  const handleEdit = (product: Product) => {
     setEditingProduct(product);
     setIsDialogOpen(true);
   };
 
-  const handleSave = (data: Partial<MenuItem>) => {
-    if (editingProduct) {
-      setProducts((prev) =>
-        prev.map((p) => (p.id === editingProduct.id ? { ...p, ...data } : p))
-      );
-      toast({ title: "Mahsulot yangilandi" });
-    } else {
-      const newProduct: MenuItem = {
-        id: Date.now().toString(),
-        name: data.name || "",
-        description: data.description || "",
-        price: data.price || 0,
-        image: data.image || "",
-        category: data.category || "burgers",
-      };
-      setProducts((prev) => [...prev, newProduct]);
-      toast({ title: "Mahsulot qo'shildi" });
+  const handleSave = async (data: Partial<Product>) => {
+    try {
+      if (editingProduct) {
+        await updateProduct.mutateAsync({ id: editingProduct.id, ...data });
+        toast({ title: "Mahsulot yangilandi" });
+      } else {
+        await createProduct.mutateAsync(data as any);
+        toast({ title: "Mahsulot qo'shildi" });
+      }
+      setIsDialogOpen(false);
+      setEditingProduct(null);
+    } catch (error) {
+      toast({
+        title: "Xatolik",
+        description: "Saqlashda xatolik yuz berdi",
+        variant: "destructive",
+      });
     }
-    setIsDialogOpen(false);
-    setEditingProduct(null);
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-10 w-40" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="h-64 rounded-xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -84,7 +121,7 @@ export default function Products() {
               Yangi mahsulot
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-card border-border">
+          <DialogContent className="bg-card border-border max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="font-display">
                 {editingProduct ? "Mahsulotni tahrirlash" : "Yangi mahsulot"}
@@ -92,11 +129,13 @@ export default function Products() {
             </DialogHeader>
             <ProductForm
               product={editingProduct}
+              categories={categories || []}
               onSave={handleSave}
               onCancel={() => {
                 setIsDialogOpen(false);
                 setEditingProduct(null);
               }}
+              isLoading={createProduct.isPending || updateProduct.isPending}
             />
           </DialogContent>
         </Dialog>
@@ -122,7 +161,7 @@ export default function Products() {
           >
             <div className="relative aspect-video overflow-hidden">
               <img
-                src={product.image}
+                src={product.image || "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400"}
                 alt={product.name}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               />
@@ -148,7 +187,7 @@ export default function Products() {
             </div>
             <div className="p-4">
               <p className="text-xs text-muted-foreground mb-1">
-                {categories.find((c) => c.slug === product.category)?.name}
+                {product.category?.name || "Kategoriyasiz"}
               </p>
               <h3 className="font-semibold truncate">{product.name}</h3>
               <p className="text-primary font-bold">{formatPrice(product.price)}</p>
@@ -161,18 +200,24 @@ export default function Products() {
 }
 
 interface ProductFormProps {
-  product: MenuItem | null;
-  onSave: (data: Partial<MenuItem>) => void;
+  product: Product | null;
+  categories: { id: string; name: string; slug: string }[];
+  onSave: (data: Partial<Product>) => void;
   onCancel: () => void;
+  isLoading: boolean;
 }
 
-function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
+function ProductForm({ product, categories, onSave, onCancel, isLoading }: ProductFormProps) {
   const [formData, setFormData] = useState({
     name: product?.name || "",
     description: product?.description || "",
     price: product?.price?.toString() || "",
     image: product?.image || "",
-    category: product?.category || "burgers",
+    category_id: product?.category_id || "",
+    is_hot: product?.is_hot || false,
+    is_new: product?.is_new || false,
+    is_featured: product?.is_featured || false,
+    discount: product?.discount?.toString() || "0",
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -182,7 +227,11 @@ function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
       description: formData.description,
       price: parseInt(formData.price),
       image: formData.image,
-      category: formData.category,
+      category_id: formData.category_id || null,
+      is_hot: formData.is_hot,
+      is_new: formData.is_new,
+      is_featured: formData.is_featured,
+      discount: parseInt(formData.discount) || 0,
     });
   };
 
@@ -203,18 +252,30 @@ function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
           value={formData.description}
           onChange={(e) => setFormData({ ...formData, description: e.target.value })}
           placeholder="Qisqa tavsif"
-          required
         />
       </div>
-      <div className="space-y-2">
-        <Label>Narxi (so'm)</Label>
-        <Input
-          type="number"
-          value={formData.price}
-          onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-          placeholder="45000"
-          required
-        />
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Narxi (so'm)</Label>
+          <Input
+            type="number"
+            value={formData.price}
+            onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+            placeholder="45000"
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Chegirma (%)</Label>
+          <Input
+            type="number"
+            value={formData.discount}
+            onChange={(e) => setFormData({ ...formData, discount: e.target.value })}
+            placeholder="0"
+            min="0"
+            max="100"
+          />
+        </div>
       </div>
       <div className="space-y-2">
         <Label>Rasm URL</Label>
@@ -222,33 +283,58 @@ function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
           value={formData.image}
           onChange={(e) => setFormData({ ...formData, image: e.target.value })}
           placeholder="https://..."
-          required
         />
       </div>
       <div className="space-y-2">
         <Label>Kategoriya</Label>
         <Select
-          value={formData.category}
-          onValueChange={(value) => setFormData({ ...formData, category: value })}
+          value={formData.category_id}
+          onValueChange={(value) => setFormData({ ...formData, category_id: value })}
         >
           <SelectTrigger>
-            <SelectValue />
+            <SelectValue placeholder="Kategoriya tanlang" />
           </SelectTrigger>
           <SelectContent>
             {categories.map((cat) => (
-              <SelectItem key={cat.id} value={cat.slug}>
+              <SelectItem key={cat.id} value={cat.id}>
                 {cat.name}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
+      
+      {/* Toggles */}
+      <div className="space-y-4 pt-2">
+        <div className="flex items-center justify-between">
+          <Label>Issiq (Hot)</Label>
+          <Switch
+            checked={formData.is_hot}
+            onCheckedChange={(checked) => setFormData({ ...formData, is_hot: checked })}
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <Label>Yangi</Label>
+          <Switch
+            checked={formData.is_new}
+            onCheckedChange={(checked) => setFormData({ ...formData, is_new: checked })}
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <Label>Kun taomi (Featured)</Label>
+          <Switch
+            checked={formData.is_featured}
+            onCheckedChange={(checked) => setFormData({ ...formData, is_featured: checked })}
+          />
+        </div>
+      </div>
+
       <div className="flex gap-2 pt-4">
         <Button type="button" variant="secondary" onClick={onCancel} className="flex-1">
           Bekor qilish
         </Button>
-        <Button type="submit" variant="hero" className="flex-1">
-          Saqlash
+        <Button type="submit" variant="hero" className="flex-1" disabled={isLoading}>
+          {isLoading ? "Saqlanmoqda..." : "Saqlash"}
         </Button>
       </div>
     </form>
