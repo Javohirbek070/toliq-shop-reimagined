@@ -1,0 +1,343 @@
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { Plus, Trash2, Crown, Shield, User } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+interface UserRole {
+  id: string;
+  user_id: string;
+  role: 'admin' | 'user' | 'owner';
+  email?: string;
+  full_name?: string;
+}
+
+export default function Users() {
+  const { toast } = useToast();
+  const { isOwner } = useAuth();
+  const [users, setUsers] = useState<UserRole[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [newUserEmail, setNewUserEmail] = useState("");
+  const [newUserRole, setNewUserRole] = useState<"admin" | "user">("admin");
+  const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
+
+  const fetchUsers = async () => {
+    setIsLoading(true);
+    const { data: roles, error } = await supabase
+      .from("user_roles")
+      .select(`
+        id,
+        user_id,
+        role,
+        profiles!inner(full_name)
+      `);
+
+    if (error) {
+      console.error("Error fetching users:", error);
+      setIsLoading(false);
+      return;
+    }
+
+    // Get emails from auth.users via a separate query
+    const userIds = roles?.map(r => r.user_id) || [];
+    
+    const usersWithEmail: UserRole[] = (roles || []).map((role: any) => ({
+      id: role.id,
+      user_id: role.user_id,
+      role: role.role as 'admin' | 'user' | 'owner',
+      full_name: role.profiles?.full_name,
+    }));
+
+    setUsers(usersWithEmail);
+    setIsLoading(false);
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const handleAddUser = async () => {
+    if (!newUserEmail.trim()) {
+      toast({
+        title: "Xatolik",
+        description: "Email kiritilishi shart",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // First, find the user by email in profiles
+    const { data: profiles, error: profileError } = await supabase
+      .from("profiles")
+      .select("user_id")
+      .eq("full_name", newUserEmail.trim());
+
+    // Try to find in auth.users via a different approach
+    // Since we can't directly query auth.users, we'll use the invite functionality
+    // For now, let's search by checking if user exists via sign in attempt or profiles
+
+    toast({
+      title: "Eslatma",
+      description: "Foydalanuvchi avval ro'yxatdan o'tgan bo'lishi kerak. Ularning user_id sini kiriting.",
+      variant: "destructive",
+    });
+    return;
+  };
+
+  const handleAddUserById = async (userId: string) => {
+    const { error } = await supabase
+      .from("user_roles")
+      .insert({ user_id: userId, role: newUserRole });
+
+    if (error) {
+      toast({
+        title: "Xatolik",
+        description: error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "Muvaffaqiyat",
+      description: "Foydalanuvchi qo'shildi",
+    });
+    setIsAddDialogOpen(false);
+    setNewUserEmail("");
+    fetchUsers();
+  };
+
+  const handleDeleteRole = async () => {
+    if (!deleteUserId) return;
+
+    const userToDelete = users.find(u => u.id === deleteUserId);
+    if (userToDelete?.role === 'owner') {
+      toast({
+        title: "Xatolik",
+        description: "Owner rolini o'chirib bo'lmaydi",
+        variant: "destructive",
+      });
+      setDeleteUserId(null);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("user_roles")
+      .delete()
+      .eq("id", deleteUserId);
+
+    if (error) {
+      toast({
+        title: "Xatolik",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Muvaffaqiyat",
+        description: "Rol o'chirildi",
+      });
+      fetchUsers();
+    }
+    setDeleteUserId(null);
+  };
+
+  const getRoleIcon = (role: string) => {
+    switch (role) {
+      case 'owner':
+        return <Crown className="h-4 w-4 text-amber-500" />;
+      case 'admin':
+        return <Shield className="h-4 w-4 text-blue-500" />;
+      default:
+        return <User className="h-4 w-4 text-muted-foreground" />;
+    }
+  };
+
+  const getRoleBadgeClass = (role: string) => {
+    switch (role) {
+      case 'owner':
+        return "bg-amber-500/20 text-amber-500 border-amber-500/30";
+      case 'admin':
+        return "bg-blue-500/20 text-blue-500 border-blue-500/30";
+      default:
+        return "bg-muted text-muted-foreground border-border";
+    }
+  };
+
+  if (!isOwner) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <Crown className="h-12 w-12 text-amber-500 mx-auto mb-4" />
+          <h2 className="text-xl font-display font-semibold mb-2">Ruxsat yo'q</h2>
+          <p className="text-muted-foreground">
+            Bu sahifaga faqat owner kirishi mumkin
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-display font-bold">Foydalanuvchilar</h1>
+          <p className="text-muted-foreground">Adminlar va rollarni boshqaring</p>
+        </div>
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogTrigger asChild>
+            <Button variant="hero">
+              <Plus className="h-4 w-4 mr-2" />
+              Admin qo'shish
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Yangi admin qo'shish</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <Label>Foydalanuvchi ID</Label>
+                <Input
+                  placeholder="User ID kiriting"
+                  value={newUserEmail}
+                  onChange={(e) => setNewUserEmail(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Foydalanuvchi avval ro'yxatdan o'tgan bo'lishi kerak
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Rol</Label>
+                <Select value={newUserRole} onValueChange={(v) => setNewUserRole(v as "admin" | "user")}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="user">User</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                variant="hero"
+                className="w-full"
+                onClick={() => handleAddUserById(newUserEmail)}
+              >
+                Qo'shish
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Users List */}
+      <div className="glass-card rounded-xl overflow-hidden">
+        {isLoading ? (
+          <div className="p-8 text-center text-muted-foreground">
+            Yuklanmoqda...
+          </div>
+        ) : users.length === 0 ? (
+          <div className="p-8 text-center text-muted-foreground">
+            Hech qanday foydalanuvchi topilmadi
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="text-left p-4 font-medium">Foydalanuvchi</th>
+                  <th className="text-left p-4 font-medium">Rol</th>
+                  <th className="text-right p-4 font-medium">Amallar</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {users.map((user) => (
+                  <tr key={user.id} className="hover:bg-muted/30 transition-colors">
+                    <td className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center">
+                          {getRoleIcon(user.role)}
+                        </div>
+                        <div>
+                          <p className="font-medium">{user.full_name || 'Noma\'lum'}</p>
+                          <p className="text-sm text-muted-foreground">{user.user_id.slice(0, 8)}...</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${getRoleBadgeClass(user.role)}`}>
+                        {getRoleIcon(user.role)}
+                        {user.role === 'owner' ? 'Owner' : user.role === 'admin' ? 'Admin' : 'User'}
+                      </span>
+                    </td>
+                    <td className="p-4 text-right">
+                      {user.role !== 'owner' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => setDeleteUserId(user.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteUserId} onOpenChange={() => setDeleteUserId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Rolni o'chirish</AlertDialogTitle>
+            <AlertDialogDescription>
+              Haqiqatan ham bu foydalanuvchi rolini o'chirmoqchimisiz? Bu amalni qaytarib bo'lmaydi.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteRole} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              O'chirish
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}

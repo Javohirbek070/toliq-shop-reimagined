@@ -8,7 +8,8 @@ import {
   Settings,
   Menu,
   X,
-  LogOut
+  LogOut,
+  Users
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -22,11 +23,15 @@ const sidebarLinks = [
   { name: "Sozlamalar", href: "/admin/settings", icon: Settings },
 ];
 
+const ownerLinks = [
+  { name: "Foydalanuvchilar", href: "/admin/users", icon: Users },
+];
+
 export default function AdminLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, isAdmin, isLoading, signOut } = useAuth();
+  const { user, isAdmin, isOwner, isLoading, signOut } = useAuth();
 
   useEffect(() => {
     if (!isLoading) {
@@ -125,6 +130,25 @@ export default function AdminLayout() {
                     isActive
                       ? "bg-sidebar-primary text-sidebar-primary-foreground"
                       : "text-sidebar-foreground hover:bg-sidebar-accent"
+                  )}
+                >
+                  <link.icon className="w-5 h-5" />
+                  {link.name}
+                </Link>
+              );
+            })}
+            {isOwner && ownerLinks.map((link) => {
+              const isActive = location.pathname === link.href;
+              return (
+                <Link
+                  key={link.name}
+                  to={link.href}
+                  onClick={() => setIsSidebarOpen(false)}
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors",
+                    isActive
+                      ? "bg-amber-500 text-background"
+                      : "text-amber-500 hover:bg-amber-500/10"
                   )}
                 >
                   <link.icon className="w-5 h-5" />
