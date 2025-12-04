@@ -1,19 +1,28 @@
 import { useState } from "react";
-import { categories, menuItems, formatPrice, type MenuItem } from "@/data/menuData";
+import { useCategories, type Category } from "@/hooks/useCategories";
+import { useProducts, formatPrice, type Product } from "@/hooks/useProducts";
 import { Button } from "@/components/ui/button";
 import { Plus, Flame, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface MenuSectionProps {
-  onAddToCart: (item: MenuItem) => void;
+  onAddToCart: (item: Product) => void;
 }
 
 export function MenuSection({ onAddToCart }: MenuSectionProps) {
-  const [activeCategory, setActiveCategory] = useState(categories[0].slug);
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const { data: categories, isLoading: categoriesLoading } = useCategories();
+  const { data: products, isLoading: productsLoading } = useProducts(activeCategory || undefined);
 
-  const filteredItems = menuItems.filter(
-    (item) => item.category === activeCategory
-  );
+  // Set default category when loaded
+  if (categories && categories.length > 0 && !activeCategory) {
+    setActiveCategory(categories[0].slug);
+  }
+
+  const filteredProducts = activeCategory
+    ? products?.filter((p) => p.category?.slug === activeCategory)
+    : products;
 
   return (
     <section id="menu" className="py-20 bg-background">
@@ -31,28 +40,47 @@ export function MenuSection({ onAddToCart }: MenuSectionProps) {
 
         {/* Category Tabs */}
         <div className="flex flex-wrap justify-center gap-2 mb-10">
-          {categories.map((category) => (
-            <Button
-              key={category.id}
-              variant={activeCategory === category.slug ? "default" : "secondary"}
-              onClick={() => setActiveCategory(category.slug)}
-              className="transition-all duration-300"
-            >
-              {category.name}
-            </Button>
-          ))}
+          {categoriesLoading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-10 w-24" />
+            ))
+          ) : (
+            categories?.map((category) => (
+              <Button
+                key={category.id}
+                variant={activeCategory === category.slug ? "default" : "secondary"}
+                onClick={() => setActiveCategory(category.slug)}
+                className="transition-all duration-300"
+              >
+                {category.name}
+              </Button>
+            ))
+          )}
         </div>
 
         {/* Menu Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {filteredItems.map((item, index) => (
-            <MenuCard
-              key={item.id}
-              item={item}
-              index={index}
-              onAddToCart={onAddToCart}
-            />
-          ))}
+          {productsLoading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="glass-card rounded-2xl overflow-hidden">
+                <Skeleton className="aspect-square" />
+                <div className="p-4 space-y-2">
+                  <Skeleton className="h-3 w-3/4" />
+                  <Skeleton className="h-5 w-1/2" />
+                  <Skeleton className="h-5 w-1/3" />
+                </div>
+              </div>
+            ))
+          ) : (
+            filteredProducts?.map((item, index) => (
+              <MenuCard
+                key={item.id}
+                item={item}
+                index={index}
+                onAddToCart={onAddToCart}
+              />
+            ))
+          )}
         </div>
       </div>
     </section>
@@ -60,9 +88,9 @@ export function MenuSection({ onAddToCart }: MenuSectionProps) {
 }
 
 interface MenuCardProps {
-  item: MenuItem;
+  item: Product;
   index: number;
-  onAddToCart: (item: MenuItem) => void;
+  onAddToCart: (item: Product) => void;
 }
 
 function MenuCard({ item, index, onAddToCart }: MenuCardProps) {
@@ -74,7 +102,7 @@ function MenuCard({ item, index, onAddToCart }: MenuCardProps) {
       {/* Image */}
       <div className="relative aspect-square overflow-hidden">
         <img
-          src={item.image}
+          src={item.image || "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400"}
           alt={item.name}
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
         />
@@ -82,13 +110,13 @@ function MenuCard({ item, index, onAddToCart }: MenuCardProps) {
         
         {/* Badges */}
         <div className="absolute top-3 left-3 flex gap-2">
-          {item.isHot && (
+          {item.is_hot && (
             <span className="flex items-center gap-1 px-2 py-1 bg-destructive text-destructive-foreground text-xs font-medium rounded-full">
               <Flame className="w-3 h-3" />
               Issiq
             </span>
           )}
-          {item.isNew && (
+          {item.is_new && (
             <span className="flex items-center gap-1 px-2 py-1 bg-primary text-primary-foreground text-xs font-medium rounded-full">
               <Sparkles className="w-3 h-3" />
               Yangi

@@ -1,19 +1,47 @@
-import { featuredItem, formatPrice } from "@/data/menuData";
+import { useFeaturedProduct, formatPrice } from "@/hooks/useProducts";
 import { Button } from "@/components/ui/button";
 import { ShoppingCart, Check } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface FeaturedSectionProps {
   onAddToCart: () => void;
 }
 
 export function FeaturedSection({ onAddToCart }: FeaturedSectionProps) {
-  if (!featuredItem) return null;
+  const { data: featuredItem, isLoading } = useFeaturedProduct();
 
   const features = [
     "Premium go'sht",
     "Maxsus sous",
     "Tez yetkazib berish",
   ];
+
+  if (isLoading) {
+    return (
+      <section id="featured" className="py-20 bg-surface">
+        <div className="container mx-auto px-4">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <Skeleton className="aspect-square rounded-3xl" />
+            <div className="space-y-4">
+              <Skeleton className="h-6 w-24" />
+              <Skeleton className="h-12 w-3/4" />
+              <Skeleton className="h-20 w-full" />
+              <div className="flex gap-4">
+                <Skeleton className="h-10 w-32" />
+                <Skeleton className="h-10 w-32" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (!featuredItem) return null;
+
+  const discountedPrice = featuredItem.discount 
+    ? Math.floor(featuredItem.price * (1 - featuredItem.discount / 100))
+    : featuredItem.price;
 
   return (
     <section id="featured" className="py-20 bg-surface">
@@ -22,16 +50,18 @@ export function FeaturedSection({ onAddToCart }: FeaturedSectionProps) {
           {/* Image Side */}
           <div className="relative">
             {/* Discount Badge */}
-            <div className="absolute -top-4 -left-4 z-10">
-              <div className="bg-destructive text-destructive-foreground px-4 py-2 rounded-xl font-bold text-lg rotate-[-12deg] shadow-lg">
-                -15%
+            {featuredItem.discount > 0 && (
+              <div className="absolute -top-4 -left-4 z-10">
+                <div className="bg-destructive text-destructive-foreground px-4 py-2 rounded-xl font-bold text-lg rotate-[-12deg] shadow-lg">
+                  -{featuredItem.discount}%
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">Bugun tugaydi</p>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">Bugun tugaydi</p>
-            </div>
+            )}
 
             <div className="relative rounded-3xl overflow-hidden glow">
               <img
-                src={featuredItem.image}
+                src={featuredItem.image || "https://images.unsplash.com/photo-1553979459-d2229ba7433b?w=400"}
                 alt={featuredItem.name}
                 className="w-full aspect-square object-cover"
               />
@@ -51,9 +81,7 @@ export function FeaturedSection({ onAddToCart }: FeaturedSectionProps) {
             </h2>
 
             <p className="text-muted-foreground mb-6 leading-relaxed">
-              Issiq va mazali! Premium mol go'shti, maxsus chili sousi, jalapeno va 
-              eriydigan cheddar siri bilan tayyorlangan mukammal burger. 
-              Har bir tishlov – yangi ta'm kashfiyoti.
+              {featuredItem.description || "Issiq va mazali! Premium ingredientlar bilan tayyorlangan mukammal taom. Har bir tishlov – yangi ta'm kashfiyoti."}
             </p>
 
             {/* Features */}
@@ -74,11 +102,13 @@ export function FeaturedSection({ onAddToCart }: FeaturedSectionProps) {
             {/* Price and CTA */}
             <div className="flex items-center gap-6">
               <div>
-                <p className="text-sm text-muted-foreground line-through">
-                  {formatPrice(featuredItem.price)}
-                </p>
+                {featuredItem.discount > 0 && (
+                  <p className="text-sm text-muted-foreground line-through">
+                    {formatPrice(featuredItem.price)}
+                  </p>
+                )}
                 <p className="text-3xl font-bold text-primary">
-                  {formatPrice(Math.floor(featuredItem.price * 0.85))}
+                  {formatPrice(discountedPrice)}
                 </p>
               </div>
               <Button variant="hero" size="xl" onClick={onAddToCart}>
