@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, Outlet, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { 
   LayoutDashboard, 
   ShoppingBag, 
@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 const sidebarLinks = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
@@ -24,6 +25,60 @@ const sidebarLinks = [
 export default function AdminLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, isAdmin, isLoading, signOut } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading) {
+      if (!user) {
+        navigate("/admin/login");
+      } else if (!isAdmin) {
+        // User is logged in but not admin - we'll show a message
+      }
+    }
+  }, [user, isAdmin, isLoading, navigate]);
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/admin/login");
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Yuklanmoqda...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="glass-card rounded-2xl p-8 max-w-md text-center">
+          <h1 className="text-2xl font-display font-bold mb-4">Ruxsat yo'q</h1>
+          <p className="text-muted-foreground mb-6">
+            Sizda admin huquqlari yo'q. Administrator bilan bog'laning.
+          </p>
+          <div className="flex gap-4 justify-center">
+            <Button variant="secondary" onClick={handleSignOut}>
+              <LogOut className="w-4 h-4" />
+              Chiqish
+            </Button>
+            <Button variant="hero" asChild>
+              <Link to="/">Saytga qaytish</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -80,7 +135,7 @@ export default function AdminLayout() {
           </nav>
 
           {/* Footer */}
-          <div className="p-4 border-t border-sidebar-border">
+          <div className="p-4 border-t border-sidebar-border space-y-2">
             <Link
               to="/"
               className="flex items-center gap-3 px-4 py-3 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent font-medium transition-colors"
@@ -88,6 +143,13 @@ export default function AdminLayout() {
               <LogOut className="w-5 h-5" />
               Saytga qaytish
             </Link>
+            <button
+              onClick={handleSignOut}
+              className="flex items-center gap-3 px-4 py-3 rounded-lg text-destructive hover:bg-destructive/10 font-medium transition-colors w-full"
+            >
+              <LogOut className="w-5 h-5" />
+              Chiqish
+            </button>
           </div>
         </div>
       </aside>
