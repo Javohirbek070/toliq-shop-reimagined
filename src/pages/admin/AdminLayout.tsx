@@ -9,11 +9,14 @@ import {
   Menu,
   X,
   LogOut,
-  Users
+  Users,
+  Bell
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrderNotifications } from "@/hooks/useOrderNotifications";
+import { Badge } from "@/components/ui/badge";
 
 const sidebarLinks = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
@@ -32,6 +35,7 @@ export default function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isAdmin, isOwner, isLoading, signOut } = useAuth();
+  const { newOrdersCount, clearNotifications } = useOrderNotifications();
 
   useEffect(() => {
     if (!isLoading) {
@@ -42,6 +46,13 @@ export default function AdminLayout() {
       }
     }
   }, [user, isAdmin, isLoading, navigate]);
+
+  // Clear notifications when viewing orders page
+  useEffect(() => {
+    if (location.pathname === "/admin/orders" && newOrdersCount > 0) {
+      clearNotifications();
+    }
+  }, [location.pathname, newOrdersCount, clearNotifications]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -92,13 +103,28 @@ export default function AdminLayout() {
         <Link to="/admin" className="font-display font-bold text-lg">
           Safi <span className="text-primary italic">Admin</span>
         </Link>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        >
-          {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link to="/admin/orders" className="relative">
+            <Button variant="ghost" size="icon">
+              <Bell className="w-5 h-5" />
+            </Button>
+            {newOrdersCount > 0 && (
+              <Badge 
+                variant="destructive" 
+                className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs animate-pulse"
+              >
+                {newOrdersCount}
+              </Badge>
+            )}
+          </Link>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          >
+            {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </Button>
+        </div>
       </div>
 
       {/* Sidebar */}
@@ -110,9 +136,22 @@ export default function AdminLayout() {
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="h-16 flex items-center px-6 border-b border-sidebar-border">
+          <div className="h-16 flex items-center justify-between px-6 border-b border-sidebar-border">
             <Link to="/admin" className="font-display font-bold text-xl">
               Safi <span className="text-sidebar-primary italic">Admin</span>
+            </Link>
+            <Link to="/admin/orders" className="relative hidden lg:block">
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <Bell className="w-4 h-4" />
+              </Button>
+              {newOrdersCount > 0 && (
+                <Badge 
+                  variant="destructive" 
+                  className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] animate-pulse"
+                >
+                  {newOrdersCount}
+                </Badge>
+              )}
             </Link>
           </div>
 
@@ -120,13 +159,14 @@ export default function AdminLayout() {
           <nav className="flex-1 p-4 space-y-2">
             {sidebarLinks.map((link) => {
               const isActive = location.pathname === link.href;
+              const isOrdersLink = link.href === "/admin/orders";
               return (
                 <Link
                   key={link.name}
                   to={link.href}
                   onClick={() => setIsSidebarOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors",
+                    "flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors relative",
                     isActive
                       ? "bg-sidebar-primary text-sidebar-primary-foreground"
                       : "text-sidebar-foreground hover:bg-sidebar-accent"
@@ -134,6 +174,14 @@ export default function AdminLayout() {
                 >
                   <link.icon className="w-5 h-5" />
                   {link.name}
+                  {isOrdersLink && newOrdersCount > 0 && (
+                    <Badge 
+                      variant="destructive" 
+                      className="ml-auto h-5 min-w-5 px-1 flex items-center justify-center text-xs animate-pulse"
+                    >
+                      {newOrdersCount}
+                    </Badge>
+                  )}
                 </Link>
               );
             })}
