@@ -21,7 +21,8 @@ export function useOrderNotifications() {
   const playNotificationSound = useCallback(() => {
     // Create a simple notification sound using Web Audio API
     try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const AudioContextConstructor = window.AudioContext || (window as Window & { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const audioContext = new AudioContextConstructor();
       
       // First beep
       const oscillator1 = audioContext.createOscillator();

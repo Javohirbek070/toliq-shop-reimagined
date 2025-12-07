@@ -73,7 +73,17 @@ export default function Products() {
         await updateProduct.mutateAsync({ id: editingProduct.id, ...data });
         toast({ title: "Mahsulot yangilandi" });
       } else {
-        await createProduct.mutateAsync(data as any);
+        await createProduct.mutateAsync({
+          name: data.name!,
+          description: data.description,
+          price: data.price!,
+          image: data.image,
+          category_id: data.category_id,
+          is_hot: data.is_hot,
+          is_new: data.is_new,
+          discount: data.discount,
+          is_featured: data.is_featured,
+        });
         toast({ title: "Mahsulot qo'shildi" });
       }
       setIsDialogOpen(false);
