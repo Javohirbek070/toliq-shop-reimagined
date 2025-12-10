@@ -1,30 +1,63 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { useSettings, useUpdateSettings, type CafeSettings } from "@/hooks/useSettings";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Settings() {
   const { toast } = useToast();
-  const [settings, setSettings] = useState({
-    cafeName: "Safi Café",
-    phone: "+998 90 123 45 67",
-    address: "Toshkent, Chilonzor tumani, 1-mavze",
-    workingHours: "09:00 - 23:00",
-    description: "Premium kafe - tezkor taomlar, shirinliklar va ichimliklar",
-    isDeliveryActive: true,
-    minOrderAmount: "30000",
-    deliveryFee: "10000",
+  const { data: settings, isLoading } = useSettings();
+  const updateSettings = useUpdateSettings();
+  const [formData, setFormData] = useState<Partial<CafeSettings>>({
+    cafe_name: "",
+    phone: "",
+    address: "",
+    working_hours: "",
+    description: "",
+    is_delivery_active: true,
+    min_order_amount: 30000,
+    delivery_fee: 10000,
   });
 
-  const handleSave = () => {
-    toast({
-      title: "Sozlamalar saqlandi",
-      description: "Barcha o'zgarishlar muvaffaqiyatli saqlandi",
-    });
+  useEffect(() => {
+    if (settings) {
+      setFormData(settings);
+    }
+  }, [settings]);
+
+  const handleSave = async () => {
+    try {
+      if (!settings?.id) return;
+      await updateSettings.mutateAsync({
+        id: settings.id,
+        ...formData,
+      });
+      toast({
+        title: "Sozlamalar saqlandi",
+        description: "Barcha o'zgarishlar muvaffaqiyatli saqlandi",
+      });
+    } catch (error) {
+      toast({
+        title: "Xatolik",
+        description: "Sozlamalarni saqlashda xatolik yuz berdi",
+        variant: "destructive",
+      });
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6 max-w-2xl">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-96 rounded-xl" />
+        <Skeleton className="h-96 rounded-xl" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -42,40 +75,40 @@ export default function Settings() {
           <div className="space-y-2">
             <Label>Kafe nomi</Label>
             <Input
-              value={settings.cafeName}
-              onChange={(e) => setSettings({ ...settings, cafeName: e.target.value })}
+              value={formData.cafe_name || ""}
+              onChange={(e) => setFormData({ ...formData, cafe_name: e.target.value })}
             />
           </div>
 
           <div className="space-y-2">
             <Label>Telefon raqam</Label>
             <Input
-              value={settings.phone}
-              onChange={(e) => setSettings({ ...settings, phone: e.target.value })}
+              value={formData.phone || ""}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
             />
           </div>
 
           <div className="space-y-2">
             <Label>Manzil</Label>
             <Input
-              value={settings.address}
-              onChange={(e) => setSettings({ ...settings, address: e.target.value })}
+              value={formData.address || ""}
+              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
             />
           </div>
 
           <div className="space-y-2">
             <Label>Ish vaqti</Label>
             <Input
-              value={settings.workingHours}
-              onChange={(e) => setSettings({ ...settings, workingHours: e.target.value })}
+              value={formData.working_hours || ""}
+              onChange={(e) => setFormData({ ...formData, working_hours: e.target.value })}
             />
           </div>
 
           <div className="space-y-2">
             <Label>Tavsif</Label>
             <Textarea
-              value={settings.description}
-              onChange={(e) => setSettings({ ...settings, description: e.target.value })}
+              value={formData.description || ""}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               rows={3}
             />
           </div>
@@ -95,9 +128,9 @@ export default function Settings() {
               </p>
             </div>
             <Switch
-              checked={settings.isDeliveryActive}
+              checked={formData.is_delivery_active ?? true}
               onCheckedChange={(checked) =>
-                setSettings({ ...settings, isDeliveryActive: checked })
+                setFormData({ ...formData, is_delivery_active: checked })
               }
             />
           </div>
@@ -106,8 +139,8 @@ export default function Settings() {
             <Label>Minimal buyurtma summasi (so'm)</Label>
             <Input
               type="number"
-              value={settings.minOrderAmount}
-              onChange={(e) => setSettings({ ...settings, minOrderAmount: e.target.value })}
+              value={formData.min_order_amount || "30000"}
+              onChange={(e) => setFormData({ ...formData, min_order_amount: parseInt(e.target.value) || 0 })}
             />
           </div>
 
@@ -115,8 +148,8 @@ export default function Settings() {
             <Label>Yetkazib berish narxi (so'm)</Label>
             <Input
               type="number"
-              value={settings.deliveryFee}
-              onChange={(e) => setSettings({ ...settings, deliveryFee: e.target.value })}
+              value={formData.delivery_fee || "10000"}
+              onChange={(e) => setFormData({ ...formData, delivery_fee: parseInt(e.target.value) || 0 })}
             />
           </div>
         </div>
